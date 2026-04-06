@@ -1,0 +1,13 @@
+<!-- Android -->
+<platform name="android">
+  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+</platform>
+
+<!-- iOS -->
+<platform name="ios">
+  <edit-config file="*-Info.plist" mode="merge" target="NSMicrophoneUsageDescription">
+    <string>Se necesita el micrófono para grabar audio.</string>
+  </edit-config>
+</platform>
