@@ -1,9 +1,13 @@
 from rest_framework import serializers
-from .models import Question
+from questions.entities.question_entity import Question
 
 
 class QuestionSerializer(serializers.ModelSerializer):
-    """Serializer para el modelo Question."""
+    """Serializer para el modelo Question.
+
+    Responsabilidad única: Define la forma de los datos
+    en la API (DTO de entrada/salida).
+    """
 
     class Meta:
         model = Question

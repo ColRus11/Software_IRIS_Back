@@ -135,3 +135,16 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
 }
+
+# Media files (uploads de videos) — SCRUM-38
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Groq API (transcripción de audio) — SCRUM-41
+# Obtener API key gratis en: https://console.groq.com/keys
+import os
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
+
+# File upload settings
+FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25 MB

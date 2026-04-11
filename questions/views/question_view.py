@@ -1,13 +1,17 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Question
-from .serializers import QuestionSerializer
+
+from questions.schemas.question_schema import QuestionSerializer
+from questions.services import question_service
 
 
 class QuestionViewSet(viewsets.ModelViewSet):
-    """
-    API ViewSet para gestionar preguntas de estudiantes.
+    """API ViewSet para gestionar preguntas de estudiantes.
+
+    Responsabilidad única: Manejar HTTP requests/responses.
+    Delega toda la lógica de negocio al servicio y el acceso
+    a datos al repositorio.
 
     Endpoints:
         GET    /api/questions/                  - Listar preguntas
@@ -20,23 +24,18 @@ class QuestionViewSet(viewsets.ModelViewSet):
     serializer_class = QuestionSerializer
 
     def get_queryset(self):
-        """Filtra preguntas por firebase_uid si se proporciona."""
-        queryset = Question.objects.all()
+        """Delega el filtrado al servicio."""
         firebase_uid = self.request.query_params.get('firebase_uid')
         session_name = self.request.query_params.get('session')
 
-        if firebase_uid:
-            queryset = queryset.filter(firebase_uid=firebase_uid)
-        if session_name:
-            queryset = queryset.filter(session_name=session_name)
-
-        return queryset
+        return question_service.listar_preguntas(
+            firebase_uid=firebase_uid,
+            session=session_name,
+        )
 
     @action(detail=True, methods=['patch'])
     def mark_spoken(self, request, pk=None):
         """Marca una pregunta como reproducida con voz sintética."""
-        question = self.get_object()
-        question.was_spoken = True
-        question.save()
+        question = question_service.marcar_como_hablada(pk)
         serializer = self.get_serializer(question)
         return Response(serializer.data)
