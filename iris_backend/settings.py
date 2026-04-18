@@ -141,6 +141,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Groq API (transcripción de audio) — SCRUM-41
+# Configurar como variable de entorno: $env:GROQ_API_KEY="gsk_..."
 # Obtener API key gratis en: https://console.groq.com/keys
 import os
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')

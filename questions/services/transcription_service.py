@@ -98,11 +98,21 @@ def transcribir_archivo(file_path, language='es'):
     segments = []
     if hasattr(transcription, 'segments') and transcription.segments:
         for i, seg in enumerate(transcription.segments, start=1):
+            # Groq puede retornar segmentos como objetos o dicts
+            if isinstance(seg, dict):
+                start = seg.get('start', 0)
+                end = seg.get('end', 0)
+                text = seg.get('text', '')
+            else:
+                start = seg.start
+                end = seg.end
+                text = seg.text
+
             segments.append({
                 'index': i,
-                'start_time': round(seg.start, 2),
-                'end_time': round(seg.end, 2),
-                'text': seg.text.strip(),
+                'start_time': round(start, 2),
+                'end_time': round(end, 2),
+                'text': text.strip(),
             })
 
     logger.info(f"Transcripción completada: {len(segments)} segmentos generados")
