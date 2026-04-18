@@ -15,8 +15,8 @@ from questions.services import transcription_service
 # Extensiones de video permitidas para upload
 ALLOWED_EXTENSIONS = {'.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4a', '.mp3', '.wav', '.ogg'}
 
-# Tamaño máximo de upload (en bytes): 25 MB (límite de Groq)
-MAX_UPLOAD_SIZE = 25 * 1024 * 1024
+# Tamaño máximo de upload (en bytes): 500 MB
+MAX_UPLOAD_SIZE = 500 * 1024 * 1024
 
 
 def subir_video(video_file, title, firebase_uid, language='es'):

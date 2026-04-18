@@ -25,8 +25,8 @@ SUPPORTED_EXTENSIONS = {
     '.wav', '.webm', '.ogg', '.flac',
 }
 
-# Tamaño máximo soportado por Groq: 25 MB
-MAX_FILE_SIZE_MB = 25
+# Tamaño máximo de archivo
+MAX_FILE_SIZE_MB = 500
 
 
 def transcribir_archivo(file_path, language='es'):
