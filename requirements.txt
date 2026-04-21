@@ -1,0 +1,3 @@
+# IRIS - Backend dependencies
+openai-whisper
+websockets
