@@ -46,3 +46,16 @@ PORT  = 8765       # Debe coincidir con WS_URL en el front
 MODEL = "base"     # Ver tabla de modelos
 LANG  = "es"       # Idioma del audio
 ```
+## paso a seguir para usar un entorno visual
+
+crear el entorno:
+
+    python3 -m venv venv
+
+activar el entorno virtual:
+
+    source venv/bin/activate
+
+desactivar el entorno virtual:
+
+    deactivate
