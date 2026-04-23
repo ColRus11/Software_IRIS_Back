@@ -47,45 +47,48 @@ async def handler(websocket):
 
     try:
         async for mensaje in websocket:
-            # El front envía "FIN" como señal de fin de grabación
             if isinstance(mensaje, str) and mensaje == "FIN":
-                log.info("Señal FIN recibida, transcribiendo...")
+                log.info("Señal FIN recibida.")
+                await websocket.send("(fin)")
                 break
 
-            if isinstance(mensaje, bytes) and len(mensaje) > 0:
-                fragmentos.append(mensaje)
-                total = sum(len(f) for f in fragmentos)
-                log.info(f"Fragmento #{len(fragmentos)}: {len(mensaje)} bytes (total: {total} bytes)")
+            if not isinstance(mensaje, bytes) or len(mensaje) == 0:
+                continue
 
+            fragmentos.append(mensaje)
+            log.info(f"Fragmento #{len(fragmentos)}: {len(mensaje)} bytes")
+
+            # Transcribe todo el audio acumulado hasta ahora
+            audio_acumulado = b"".join(fragmentos)
+
+            with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
+                tmp.write(audio_acumulado)
+                tmp_path = tmp.name
+
+            try:
+                resultado = modelo.transcribe(
+                    tmp_path,
+                    language                   = LANG,
+                    fp16                       = False,
+                    condition_on_previous_text = False
+                )
+                texto = resultado["text"].strip()
+
+                if texto:
+                    log.info(f"Transcripción parcial: {texto}")
+                    await websocket.send(texto)
+
+            except Exception as e:
+                log.error(f"Error en transcripción: {e}")
+            finally:
+                os.unlink(tmp_path)
+
+    except websockets.exceptions.ConnectionClosedOK:
+        log.info(f"Cliente desconectado: {cliente}")
     except websockets.exceptions.ConnectionClosedError as e:
         log.warning(f"Conexión cerrada con error: {e}")
-
-    # Transcribe y responde antes de cerrar
-    if fragmentos:
-        audio_completo = b"".join(fragmentos)
-        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
-            tmp.write(audio_completo)
-            tmp_path = tmp.name
-        try:
-            resultado = modelo.transcribe(
-                tmp_path,
-                language                   = LANG,
-                fp16                       = False,
-                condition_on_previous_text = True
-            )
-            texto = resultado["text"].strip()
-            if texto:
-                log.info(f"Transcripción: {texto}")
-                await websocket.send(texto)
-            else:
-                log.info("Sin texto detectado.")
-                await websocket.send("(sin texto detectado)")
-        except Exception as e:
-            log.error(f"Error en transcripción: {e}")
-        finally:
-            os.unlink(tmp_path)
-    else:
-        log.info("Sin fragmentos de audio.")
+    except Exception as e:
+        log.error(f"Error inesperado: {e}")
 
 # ─── Inicio del servidor ──────────────────────────────────
 async def main():
