@@ -1,39 +1,37 @@
 """
-IRIS - Backend WebSocket + HTTP POST + Whisper
------------------------------------------------
-- WebSocket ws://localhost:8765  → web (fragmentos en tiempo real)
-- HTTP POST http://localhost:8766/transcribir → Cordova (archivo completo)
+IRIS - Backend unificado en un solo puerto
+-------------------------------------------
+- WebSocket  ws://host/ws         → web (fragmentos en tiempo real)
+- HTTP POST  http://host/transcribir → Cordova (archivo completo)
 
-Uso:
+Todo corre en el mismo puerto asignado por Railway via PORT.
+
+Uso local:
     python3 main.py
 
-Requisitos:
-    pip install -r requirements.txt
-    brew install ffmpeg
+Uso Railway:
+    Procfile: web: python3 main.py
 """
 
 import asyncio
-import websockets
-import whisper
-import tempfile
 import os
 import logging
 import datetime
+import tempfile
+import websockets
+import whisper
 from aiohttp import web
 
 # Configuración 
-WS_HOST   = "0.0.0.0"
-HTTP_HOST = "0.0.0.0"
-# Railway asigna el puerto via variable de entorno
-HTTP_PORT = int(os.environ.get("PORT", 8766))
-WS_PORT   = int(os.environ.get("WS_PORT", 8765))
-MODEL     = "base"
-LANG      = "es"
+PORT  = int(os.environ.get("PORT", 8765))
+HOST  = "0.0.0.0"
+MODEL = "base"
+LANG  = "es"
 
 TRANSCRIPCIONES_DIR = "transcripciones"
 os.makedirs(TRANSCRIPCIONES_DIR, exist_ok=True)
 
-# ─── Logging ──────────────────────────────────────────────
+# Logging 
 logging.basicConfig(
     level   = logging.INFO,
     format  = "[%(asctime)s] %(levelname)s - %(message)s",
@@ -41,12 +39,12 @@ logging.basicConfig(
 )
 log = logging.getLogger("IRIS")
 
-# ─── Carga del modelo ─────────────────────────────────────
+# Carga del modelo 
 log.info(f"Cargando modelo Whisper '{MODEL}'...")
 modelo = whisper.load_model(MODEL)
 log.info("Modelo listo.")
 
-# ─── Utilidades ───────────────────────────────────────────
+# Utilidades 
 def guardar_transcripcion(texto):
     ahora  = datetime.datetime.now()
     nombre = ahora.strftime("transcripcion_%Y-%m-%d_%H-%M-%S.txt")
@@ -55,7 +53,6 @@ def guardar_transcripcion(texto):
         f.write(f"Fecha: {ahora.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         f.write(texto)
     log.info(f"Transcripción guardada en: {ruta}")
-    return ruta
 
 def transcribir_archivo(ruta):
     resultado = modelo.transcribe(
@@ -66,17 +63,15 @@ def transcribir_archivo(ruta):
     )
     return resultado["text"].strip()
 
-# ─── WebSocket handler (web) ──────────────────────────────
+# WebSocket handler (web)
 async def ws_handler(websocket):
-    cliente   = websocket.remote_address
+    cliente    = websocket.remote_address
     fragmentos = []
     textoFinal = ""
     log.info(f"[WS] Cliente conectado: {cliente}")
 
     try:
         async for mensaje in websocket:
-
-            # Señal de fin — guarda y cierra
             if isinstance(mensaje, str) and mensaje == "FIN":
                 log.info("[WS] Señal FIN recibida.")
                 if textoFinal:
@@ -90,9 +85,7 @@ async def ws_handler(websocket):
             fragmentos.append(mensaje)
             log.info(f"[WS] Fragmento #{len(fragmentos)}: {len(mensaje)} bytes")
 
-            # Transcribe el audio acumulado completo
             audio_acumulado = b"".join(fragmentos)
-
             with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
                 tmp.write(audio_acumulado)
                 tmp_path = tmp.name
@@ -115,91 +108,97 @@ async def ws_handler(websocket):
     except Exception as e:
         log.error(f"[WS] Error inesperado: {e}")
 
-# ─── HTTP POST handler (Cordova) ──────────────────────────
-async def http_transcribir(request):
-    log.info("[HTTP] Solicitud de transcripción recibida")
+# HTTP handler (Cordova + upgrade a WS) 
+async def http_handler(request):
+    # Upgrade a WebSocket si el cliente lo pide
+    if request.headers.get("Upgrade", "").lower() == "websocket":
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        # Delega al handler de WebSocket via websockets library
+        # (aiohttp maneja WS nativamente aquí)
+        fragmentos = []
+        textoFinal = ""
+        async for msg in ws:
+            if msg.type == web.WSMsgType.TEXT and msg.data == "FIN":
+                if textoFinal:
+                    guardar_transcripcion(textoFinal)
+                await ws.send_str("(fin)")
+                break
+            elif msg.type == web.WSMsgType.BINARY and len(msg.data) > 0:
+                fragmentos.append(msg.data)
+                audio_acumulado = b"".join(fragmentos)
+                with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
+                    tmp.write(audio_acumulado)
+                    tmp_path = tmp.name
+                try:
+                    texto = transcribir_archivo(tmp_path)
+                    if texto:
+                        textoFinal = texto
+                        await ws.send_str(texto)
+                except Exception as e:
+                    log.error(f"[WS] Error: {e}")
+                finally:
+                    os.unlink(tmp_path)
+        return ws
 
-    # Permite solicitudes desde cualquier origen (CORS para Cordova)
-    headers = {
-        "Access-Control-Allow-Origin"  : "*",
-        "Access-Control-Allow-Methods" : "POST, OPTIONS",
-        "Access-Control-Allow-Headers" : "Content-Type"
-    }
-
-    # Preflight OPTIONS
-    if request.method == "OPTIONS":
-        return web.Response(headers=headers)
-
-    try:
-        datos = await request.read()
-
-        if not datos:
-            return web.Response(
-                text    = "Sin audio",
-                status  = 400,
-                headers = headers
-            )
-
-        log.info(f"[HTTP] Audio recibido: {len(datos)} bytes")
-
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp.write(datos)
-            tmp_path = tmp.name
-
+    # HTTP POST /transcribir (Cordova)
+    if request.path == "/transcribir" and request.method == "POST":
+        headers = {
+            "Access-Control-Allow-Origin" : "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+        }
         try:
-            texto = transcribir_archivo(tmp_path)
+            datos = await request.read()
+            if not datos:
+                return web.Response(text="Sin audio", status=400, headers=headers)
 
-            if texto:
-                log.info(f"[HTTP] Transcripción: {texto}")
-                guardar_transcripcion(texto)
-                return web.Response(
-                    text    = texto,
-                    status  = 200,
-                    headers = headers
-                )
-            else:
-                return web.Response(
-                    text    = "(sin texto detectado)",
-                    status  = 200,
-                    headers = headers
-                )
+            log.info(f"[HTTP] Audio recibido: {len(datos)} bytes")
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp.write(datos)
+                tmp_path = tmp.name
+
+            try:
+                texto = transcribir_archivo(tmp_path)
+                if texto:
+                    log.info(f"[HTTP] Transcripción: {texto}")
+                    guardar_transcripcion(texto)
+                    return web.Response(text=texto, status=200, headers=headers)
+                else:
+                    return web.Response(text="(sin texto)", status=200, headers=headers)
+            except Exception as e:
+                log.error(f"[HTTP] Error: {e}")
+                return web.Response(text=str(e), status=500, headers=headers)
+            finally:
+                os.unlink(tmp_path)
 
         except Exception as e:
-            log.error(f"[HTTP] Error en transcripción: {e}")
-            return web.Response(
-                text    = f"Error: {str(e)}",
-                status  = 500,
-                headers = headers
-            )
-        finally:
-            os.unlink(tmp_path)
+            return web.Response(text=str(e), status=500)
 
-    except Exception as e:
-        log.error(f"[HTTP] Error inesperado: {e}")
-        return web.Response(
-            text    = f"Error: {str(e)}",
-            status  = 500,
-            headers = headers
-        )
+    # OPTIONS preflight
+    if request.method == "OPTIONS":
+        return web.Response(headers={
+            "Access-Control-Allow-Origin" : "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+        })
 
-# ─── Inicio de servidores ─────────────────────────────────
+    return web.Response(text="IRIS Backend OK", status=200)
+
+# Inicio
 async def main():
-    # Servidor WebSocket
-    ws_server = await websockets.serve(ws_handler, WS_HOST, WS_PORT)
-    log.info(f"[WS]   Servidor WebSocket en ws://{WS_HOST}:{WS_PORT}")
-
-    # Servidor HTTP
     app = web.Application()
-    app.router.add_post("/transcribir", http_transcribir)
-    app.router.add_route("OPTIONS", "/transcribir", http_transcribir)
+    app.router.add_route("*", "/{path_info:.*}", http_handler)
 
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, HTTP_HOST, HTTP_PORT)
+    site = web.TCPSite(runner, HOST, PORT)
     await site.start()
-    log.info(f"[HTTP] Servidor HTTP en http://{HTTP_HOST}:{HTTP_PORT}/transcribir")
 
-    log.info("Servidores listos. Esperando conexiones...")
+    log.info(f"Servidor IRIS corriendo en puerto {PORT}")
+    log.info(f"  WebSocket : ws://host/")
+    log.info(f"  HTTP POST : http://host/transcribir")
+    log.info("Esperando conexiones...")
     await asyncio.Future()
 
 if __name__ == "__main__":
