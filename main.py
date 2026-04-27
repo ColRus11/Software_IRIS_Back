@@ -25,7 +25,7 @@ from aiohttp import web
 # Configuración 
 PORT  = int(os.environ.get("PORT", 8765))
 HOST  = "0.0.0.0"
-MODEL = "base"
+MODEL = "tiny"
 LANG  = "es"
 
 TRANSCRIPCIONES_DIR = "transcripciones"
