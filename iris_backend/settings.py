@@ -42,6 +42,9 @@ INSTALLED_APPS = [
     'corsheaders',
     # Local
     'questions',
+    'users',
+    'alerts',
+    'transcriptions',
 ]
 
 MIDDLEWARE = [
