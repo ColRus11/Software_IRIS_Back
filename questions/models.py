@@ -1,26 +1,13 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 
 class Question(models.Model):
-    """Modelo para almacenar preguntas realizadas por estudiantes."""
-    firebase_uid = models.CharField(
-        max_length=128,
-        help_text="UID del usuario en Firebase Authentication"
-    )
-    text = models.TextField(
-        help_text="Texto de la pregunta"
-    )
-    session_name = models.CharField(
-        max_length=200,
-        blank=True,
-        default='',
-        help_text="Nombre de la clase o sesión"
-    )
-    was_spoken = models.BooleanField(
-        default=False,
-        help_text="Indica si la pregunta fue reproducida con voz sintética"
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
+    user         = models.ForeignKey(User, on_delete=models.CASCADE, related_name='questions')
+    text         = models.TextField()
+    session_name = models.CharField(max_length=200, blank=True, default='')
+    was_spoken   = models.BooleanField(default=False)
+    created_at   = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']

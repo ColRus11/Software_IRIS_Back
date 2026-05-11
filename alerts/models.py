@@ -1,7 +1,8 @@
 from django.db import models
+from django.contrib.auth.models import User
+
 
 class EmergencyAlert(models.Model):
-    """Alerta de emergencia del campus."""
     SEVERITY_CHOICES = [
         ('info',      'Información'),
         ('warning',   'Advertencia'),
@@ -11,7 +12,7 @@ class EmergencyAlert(models.Model):
     message    = models.TextField()
     severity   = models.CharField(max_length=20, choices=SEVERITY_CHOICES, default='info')
     is_active  = models.BooleanField(default=True)
-    created_by = models.CharField(max_length=128, blank=True, help_text="firebase_uid del admin")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='alerts')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

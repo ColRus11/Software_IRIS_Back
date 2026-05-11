@@ -1,15 +1,16 @@
 from django.db import models
+from django.contrib.auth.models import User
+
 
 class UserProfile(models.Model):
-    """Perfil de usuario — réplica de User.cs del repo MAUI del compañero."""
-    firebase_uid = models.CharField(max_length=128, unique=True)
+    ROLE_CHOICES = [
+        ('Student', 'Estudiante'),
+        ('Teacher', 'Docente'),
+        ('Admin',   'Admin'),
+    ]
+    user         = models.OneToOneField(User, on_delete=models.CASCADE, related_name='userprofile')
     display_name = models.CharField(max_length=200, blank=True)
-    email        = models.EmailField(blank=True)
-    role         = models.CharField(
-        max_length=20,
-        choices=[('Student','Estudiante'), ('Teacher','Docente'), ('Admin','Admin')],
-        default='Student'
-    )
+    role         = models.CharField(max_length=20, choices=ROLE_CHOICES, default='Student')
     university   = models.CharField(max_length=200, blank=True)
     created_at   = models.DateTimeField(auto_now_add=True)
 
