@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python manage.py migrate && gunicorn iris_backend.wsgi --log-file -"
+startCommand = "python manage.py migrate && gunicorn iris_backend.wsgi --bind 0.0.0.0:$PORT --log-file -"
 healthcheckPath = "/api/"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
