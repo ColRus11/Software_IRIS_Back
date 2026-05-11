@@ -1,1 +1,1 @@
-web: gunicorn iris_backend.wsgi --log-file -
+web: python manage.py migrate && gunicorn iris_backend.wsgi --log-file -
